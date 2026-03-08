@@ -61,7 +61,6 @@ export default function ContactSection({
   onAdminClick,
 }: ContactSectionProps) {
   const currentYear = new Date().getFullYear();
-  const hostname = encodeURIComponent(window.location.hostname);
 
   return (
     <section
@@ -192,15 +191,6 @@ export default function ContactSection({
             </span>
           </div>
           <div className="flex items-center gap-4">
-            <a
-              href={`https://caffeine.ai?utm_source=caffeine-footer&utm_medium=referral&utm_content=${hostname}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-foreground transition-colors"
-            >
-              Built with ❤️ using caffeine.ai
-            </a>
-            <span className="text-border">·</span>
             <button
               type="button"
               onClick={onAdminClick}
