@@ -1,0 +1,139 @@
+type _CaffeineStorageRefillResult = 
+ record {
+   success: opt bool;
+   topped_up_amount: opt nat;
+ };
+type _CaffeineStorageRefillInformation = record {
+                                           proposed_top_up_amount: opt nat;};
+type _CaffeineStorageCreateCertificateResult = 
+ record {
+   blob_hash: text;
+   method: text;
+ };
+type UserRole = 
+ variant {
+   admin;
+   guest;
+   user;
+ };
+type Tournament = 
+ record {
+   bannerImageId: opt text;
+   date: text;
+   game: text;
+   id: nat;
+   prizePool: text;
+   registrationUrl: text;
+   sortOrder: int;
+   status: text;
+   title: text;
+ };
+type SiteInfo = 
+ record {
+   aboutText: text;
+   contactEmail: text;
+   discordUrl: text;
+   facebookUrl: text;
+   instagramUrl: text;
+   missionText: text;
+   phone: text;
+   twitterUrl: text;
+   youtubeUrl: text;
+ };
+type PlayerStatus = 
+ variant {
+   approved;
+   pending;
+   rejected;
+ };
+type PlayerPublic = 
+ record {
+   createdAt: int;
+   gameAccountType: text;
+   gameplayDescription: text;
+   gameplayLevel: text;
+   guildName: text;
+   id: nat;
+   playStyles: vec text;
+   rank: nat;
+   status: PlayerStatus;
+   topPlacements: nat;
+   tournamentsJoined: vec nat;
+   uid: text;
+   username: text;
+   wins: nat;
+ };
+type Player = 
+ record {
+   createdAt: int;
+   gameAccountEmail: text;
+   gameAccountPassword: text;
+   gameAccountType: text;
+   gameplayDescription: text;
+   gameplayLevel: text;
+   guildName: text;
+   id: nat;
+   playStyles: vec text;
+   rank: nat;
+   screenRecordBlobId: opt text;
+   screenshotBlobId: opt text;
+   status: PlayerStatus;
+   topPlacements: nat;
+   tournamentsJoined: vec nat;
+   uid: text;
+   username: text;
+   wins: nat;
+ };
+type GalleryItem = 
+ record {
+   caption: text;
+   id: nat;
+   imageId: opt text;
+   sortOrder: int;
+ };
+service : {
+  _caffeineStorageBlobIsLive: (hash: blob) -> (bool) query;
+  _caffeineStorageBlobsToDelete: () -> (vec blob) query;
+  _caffeineStorageConfirmBlobDeletion: (blobs: vec blob) -> ();
+  _caffeineStorageCreateCertificate: (blobHash: text) ->
+   (_CaffeineStorageCreateCertificateResult);
+  _caffeineStorageRefillCashier: (refillInformation:
+   opt _CaffeineStorageRefillInformation) -> (_CaffeineStorageRefillResult);
+  _caffeineStorageUpdateGatewayPrincipals: () -> ();
+  _initializeAccessControlWithSecret: (userSecret: text) -> ();
+  addGalleryItem: (caption: text, imageId: opt text, sortOrder: int) -> (nat);
+  addTournament: (title: text, game: text, date: text, prizePool: text,
+   status: text, registrationUrl: text, bannerImageId: opt text, sortOrder:
+   int) -> (nat);
+  approvePlayer: (playerId: nat) -> ();
+  assignCallerUserRole: (user: principal, role: UserRole) -> ();
+  deleteGalleryItem: (id: nat) -> ();
+  deleteTournament: (id: nat) -> ();
+  getAllPlayers: () -> (vec Player);
+  getCallerUserRole: () -> (UserRole) query;
+  getGalleryItems: () -> (vec GalleryItem) query;
+  getLeaderboard: () -> (vec PlayerPublic) query;
+  getPendingRegistrations: () -> (vec Player);
+  getPlayerByToken: (token: text) -> (opt PlayerPublic) query;
+  getPlayerProfile: (playerId: nat) -> (opt PlayerPublic) query;
+  getSiteInfo: () -> (SiteInfo) query;
+  getTournamentJoinRequests: (tournamentId: nat) -> (vec PlayerPublic);
+  getTournaments: () -> (vec Tournament) query;
+  isCallerAdmin: () -> (bool) query;
+  joinTournament: (token: text, tournamentId: nat) -> (bool);
+  loginPlayer: (username: text, password: text) -> (opt text);
+  rejectPlayer: (playerId: nat) -> ();
+  setPlayerRanking: (playerId: nat, rank: nat) -> ();
+  submitRegistration: (username: text, uid: text, gameAccountType: text,
+   gameAccountEmail: text, gameAccountPassword: text, screenshotBlobId:
+   opt text, screenRecordBlobId: opt text, gameplayLevel: text,
+   gameplayDescription: text, guildName: text, playStyles: vec text) -> (
+   nat);
+  updateGalleryItem: (id: nat, caption: text, imageId: opt text, sortOrder:
+   int) -> ();
+  updatePlayerStats: (playerId: nat, wins: nat, topPlacements: nat) -> ();
+  updateSiteInfo: (info: SiteInfo) -> ();
+  updateTournament: (id: nat, title: text, game: text, date: text, prizePool:
+   text, status: text, registrationUrl: text, bannerImageId: opt text,
+   sortOrder: int) -> ();
+}

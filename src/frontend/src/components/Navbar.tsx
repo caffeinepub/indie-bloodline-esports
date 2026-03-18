@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Menu, X, Zap } from "lucide-react";
+import { usePlayerSession } from "@/hooks/usePlayerSession";
+import { LayoutDashboard, Menu, Trophy, UserPlus, X, Zap } from "lucide-react";
 import { useEffect, useState } from "react";
 
 const NAV_LINKS = [
@@ -18,11 +19,20 @@ function scrollToSection(id: string) {
 
 interface NavbarProps {
   onAdminClick: () => void;
+  onPlayerLoginClick?: () => void;
+  onLeaderboardClick?: () => void;
+  onRegisterClick?: () => void;
 }
 
-export default function Navbar({ onAdminClick }: NavbarProps) {
+export default function Navbar({
+  onAdminClick,
+  onPlayerLoginClick,
+  onLeaderboardClick,
+  onRegisterClick,
+}: NavbarProps) {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { isLoggedIn, player } = usePlayerSession();
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -66,7 +76,7 @@ export default function Navbar({ onAdminClick }: NavbarProps) {
         </button>
 
         {/* Desktop Nav Links */}
-        <ul className="hidden md:flex items-center gap-1">
+        <ul className="hidden lg:flex items-center gap-1">
           {NAV_LINKS.map((link) => (
             <li key={link.id}>
               <button
@@ -80,14 +90,60 @@ export default function Navbar({ onAdminClick }: NavbarProps) {
               </button>
             </li>
           ))}
+          {onLeaderboardClick && (
+            <li>
+              <button
+                type="button"
+                onClick={onLeaderboardClick}
+                className="px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors relative group"
+                data-ocid="navbar.leaderboard_link"
+              >
+                Leaderboard
+                <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0.5 bg-primary group-hover:w-full transition-all duration-300 rounded-full" />
+              </button>
+            </li>
+          )}
         </ul>
 
         {/* Desktop Right Side */}
-        <div className="hidden md:flex items-center gap-3">
+        <div className="hidden md:flex items-center gap-2">
+          {isLoggedIn ? (
+            <button
+              type="button"
+              onClick={onPlayerLoginClick}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-primary border border-primary/40 hover:bg-primary/10 transition-all duration-200"
+              data-ocid="navbar.dashboard_link"
+            >
+              <LayoutDashboard size={12} />
+              {player?.username ?? "Dashboard"}
+            </button>
+          ) : (
+            <>
+              {onRegisterClick && (
+                <button
+                  type="button"
+                  onClick={onRegisterClick}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground border border-border hover:border-primary/50 transition-all duration-200"
+                  data-ocid="navbar.register_link"
+                >
+                  <UserPlus size={12} />
+                  Register
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={onPlayerLoginClick}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground border border-border hover:border-primary/50 transition-all duration-200"
+                data-ocid="navbar.player_login_link"
+              >
+                Player Login
+              </button>
+            </>
+          )}
           <button
             type="button"
             onClick={onAdminClick}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-primary border border-border hover:border-primary/50 rounded transition-all duration-200"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-primary border border-border hover:border-primary/50 transition-all duration-200"
             data-ocid="navbar.admin_link"
           >
             <Zap size={12} />
@@ -140,21 +196,81 @@ export default function Navbar({ onAdminClick }: NavbarProps) {
                     </button>
                   </li>
                 ))}
+                {onLeaderboardClick && (
+                  <li>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMobileOpen(false);
+                        onLeaderboardClick();
+                      }}
+                      className="w-full text-left px-4 py-3 text-base font-medium text-muted-foreground hover:text-foreground hover:bg-secondary/50 rounded-lg transition-all flex items-center gap-2"
+                      data-ocid="navbar.leaderboard_link"
+                    >
+                      <Trophy size={14} />
+                      Leaderboard
+                    </button>
+                  </li>
+                )}
               </ul>
 
-              {/* Mobile Admin Link */}
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileOpen(false);
-                  onAdminClick();
-                }}
-                className="flex items-center gap-2 px-4 py-3 text-sm font-semibold text-primary border border-primary/30 rounded-lg hover:bg-primary/10 transition-all"
-                data-ocid="navbar.admin_link"
-              >
-                <Zap size={14} />
-                Admin Panel
-              </button>
+              {/* Mobile Player Actions */}
+              <div className="flex flex-col gap-2">
+                {isLoggedIn ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileOpen(false);
+                      onPlayerLoginClick?.();
+                    }}
+                    className="flex items-center gap-2 px-4 py-3 text-sm font-semibold text-primary border border-primary/30 rounded-lg hover:bg-primary/10 transition-all"
+                    data-ocid="navbar.dashboard_link"
+                  >
+                    <LayoutDashboard size={14} />
+                    Dashboard
+                  </button>
+                ) : (
+                  <>
+                    {onRegisterClick && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMobileOpen(false);
+                          onRegisterClick();
+                        }}
+                        className="flex items-center gap-2 px-4 py-3 text-sm font-semibold text-muted-foreground border border-border rounded-lg hover:bg-secondary/50 transition-all"
+                        data-ocid="navbar.register_link"
+                      >
+                        <UserPlus size={14} />
+                        Register
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMobileOpen(false);
+                        onPlayerLoginClick?.();
+                      }}
+                      className="flex items-center gap-2 px-4 py-3 text-sm font-semibold text-muted-foreground border border-border rounded-lg hover:bg-secondary/50 transition-all"
+                      data-ocid="navbar.player_login_link"
+                    >
+                      Player Login
+                    </button>
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileOpen(false);
+                    onAdminClick();
+                  }}
+                  className="flex items-center gap-2 px-4 py-3 text-sm font-semibold text-muted-foreground border border-border rounded-lg hover:bg-secondary/50 transition-all"
+                  data-ocid="navbar.admin_link"
+                >
+                  <Zap size={14} />
+                  Admin Panel
+                </button>
+              </div>
             </div>
           </SheetContent>
         </Sheet>

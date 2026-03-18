@@ -1,3 +1,9 @@
+import type { Tournament as BackendTournament } from "@/backend";
+import {
+  PlayersRankingsTab,
+  RegistrationsTab,
+  TournamentJoinsTab,
+} from "@/components/admin/PlayerAdminTabs";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,15 +42,15 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { useInternetIdentity } from "@/hooks/useInternetIdentity";
+import { useActor } from "@/hooks/useActor";
 import {
   type GalleryItem,
   type SiteInfo,
   type Tournament,
   useGallery,
   useSiteInfo,
-  useTournaments,
 } from "@/hooks/useLocalStore";
+import { usePlayerSession } from "@/hooks/usePlayerSession";
 import {
   ArrowLeft,
   Edit2,
@@ -54,9 +60,8 @@ import {
   Plus,
   Save,
   Trash2,
-  Zap,
 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 interface AdminPageProps {
@@ -72,7 +77,22 @@ const STATUS_COLORS = {
 // ─── Login Screen ────────────────────────────────────────────────────────────
 
 function LoginScreen({ onBack }: { onBack: () => void }) {
-  const { login, isLoggingIn } = useInternetIdentity();
+  const { login } = usePlayerSession();
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setIsLoading(true);
+    const result = await login(username, password);
+    setIsLoading(false);
+    if (result !== "success") {
+      setError("Invalid username or password. Please try again.");
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4 relative">
@@ -120,33 +140,75 @@ function LoginScreen({ onBack }: { onBack: () => void }) {
             Admin Panel
           </h1>
           <p className="text-muted-foreground text-sm mb-8 leading-relaxed">
-            Authenticate with Internet Identity to access the content management
-            system. Only authorized principals can manage tournaments and site
-            content.
+            Enter your credentials to access the content management system.
           </p>
 
-          <Button
-            onClick={login}
-            disabled={isLoggingIn}
-            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-display font-bold text-base py-6 rounded-none neon-border transition-all"
-            data-ocid="admin.login_button"
-          >
-            {isLoggingIn ? (
-              <>
-                <Loader2 size={18} className="mr-2 animate-spin" />
-                Connecting...
-              </>
-            ) : (
-              <>
-                <Zap size={18} className="mr-2" />
-                Login with Internet Identity
-              </>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label
+                htmlFor="admin-username"
+                className="text-xs uppercase tracking-wider text-muted-foreground"
+              >
+                Username
+              </Label>
+              <Input
+                id="admin-username"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Enter username"
+                className="bg-secondary border-border text-foreground rounded-none"
+                data-ocid="admin.username.input"
+                required
+                autoComplete="username"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label
+                htmlFor="admin-password"
+                className="text-xs uppercase tracking-wider text-muted-foreground"
+              >
+                Password
+              </Label>
+              <Input
+                id="admin-password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter password"
+                className="bg-secondary border-border text-foreground rounded-none"
+                data-ocid="admin.password.input"
+                required
+                autoComplete="current-password"
+              />
+            </div>
+
+            {error && (
+              <p
+                className="text-xs text-destructive bg-destructive/10 border border-destructive/30 px-3 py-2 rounded-none"
+                data-ocid="admin.error_state"
+              >
+                {error}
+              </p>
             )}
-          </Button>
 
-          <p className="text-xs text-muted-foreground/60 text-center mt-4">
-            Secured by Internet Identity — no passwords required
-          </p>
+            <Button
+              type="submit"
+              disabled={isLoading}
+              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-display font-bold text-base py-6 rounded-none neon-border transition-all"
+              data-ocid="admin.login_button"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 size={18} className="mr-2 animate-spin" />
+                  Signing in...
+                </>
+              ) : (
+                "Sign In"
+              )}
+            </Button>
+          </form>
         </div>
       </div>
     </div>
@@ -412,21 +474,76 @@ function TournamentFormDialog({
 // ─── Tournaments Tab ──────────────────────────────────────────────────────────
 
 function TournamentsTab() {
-  const { tournaments, addTournament, updateTournament, deleteTournament } =
-    useTournaments();
+  const { actor } = useActor();
+  const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [_loadingT, setLoadingT] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Tournament | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const handleSave = (data: Omit<Tournament, "id" | "sortOrder">) => {
-    if (editTarget) {
-      updateTournament(editTarget.id, data);
-      toast.success("Tournament updated");
-    } else {
-      addTournament(data);
-      toast.success("Tournament added");
+  const loadTournaments = useCallback(async () => {
+    if (!actor) return;
+    setLoadingT(true);
+    try {
+      const data: BackendTournament[] = await actor.getTournaments();
+      setTournaments(
+        data.map((t) => ({
+          id: t.id.toString(),
+          title: t.title,
+          game: t.game,
+          date: t.date,
+          prizePool: t.prizePool,
+          status: t.status as Tournament["status"],
+          registrationUrl: t.registrationUrl,
+          bannerImage: t.bannerImageId[0],
+          sortOrder: Number(t.sortOrder),
+        })),
+      );
+    } catch {
+      toast.error("Failed to load tournaments");
+    } finally {
+      setLoadingT(false);
     }
-    setEditTarget(null);
+  }, [actor]);
+
+  useEffect(() => {
+    loadTournaments();
+  }, [loadTournaments]);
+
+  const handleSave = async (data: Omit<Tournament, "id" | "sortOrder">) => {
+    if (!actor) return;
+    try {
+      if (editTarget) {
+        await actor.updateTournament(
+          BigInt(editTarget.id),
+          data.title,
+          data.game,
+          data.date,
+          data.prizePool,
+          data.status,
+          data.registrationUrl,
+          data.bannerImage ? [data.bannerImage] : [],
+          BigInt(editTarget.sortOrder),
+        );
+        toast.success("Tournament updated");
+      } else {
+        await actor.addTournament(
+          data.title,
+          data.game,
+          data.date,
+          data.prizePool,
+          data.status,
+          data.registrationUrl,
+          data.bannerImage ? [data.bannerImage] : [],
+          BigInt(tournaments.length),
+        );
+        toast.success("Tournament added");
+      }
+      setEditTarget(null);
+      await loadTournaments();
+    } catch {
+      toast.error("Failed to save tournament");
+    }
   };
 
   const handleEdit = (t: Tournament) => {
@@ -434,11 +551,15 @@ function TournamentsTab() {
     setFormOpen(true);
   };
 
-  const handleDeleteConfirm = () => {
-    if (deleteId) {
-      deleteTournament(deleteId);
+  const handleDeleteConfirm = async () => {
+    if (!actor || !deleteId) return;
+    try {
+      await actor.deleteTournament(BigInt(deleteId));
       toast.success("Tournament deleted");
       setDeleteId(null);
+      await loadTournaments();
+    } catch {
+      toast.error("Failed to delete tournament");
     }
   };
 
@@ -1017,17 +1138,12 @@ function SiteInfoTab() {
 // ─── Admin CMS Layout ─────────────────────────────────────────────────────────
 
 function AdminCMS({ onBack }: { onBack: () => void }) {
-  const { clear, identity } = useInternetIdentity();
+  const { logout, player } = usePlayerSession();
 
   const handleLogout = () => {
-    clear();
+    logout();
     toast.success("Logged out");
   };
-
-  const principal = identity?.getPrincipal().toString();
-  const shortPrincipal = principal
-    ? `${principal.slice(0, 8)}...${principal.slice(-4)}`
-    : "";
 
   return (
     <div className="min-h-screen bg-background">
@@ -1058,9 +1174,9 @@ function AdminCMS({ onBack }: { onBack: () => void }) {
           </div>
 
           <div className="flex items-center gap-3">
-            {shortPrincipal && (
+            {player?.username && (
               <span className="hidden sm:block text-xs text-muted-foreground font-mono bg-secondary px-2 py-1 rounded">
-                {shortPrincipal}
+                {player.username}
               </span>
             )}
             <Button
@@ -1084,32 +1200,53 @@ function AdminCMS({ onBack }: { onBack: () => void }) {
             Content Manager
           </h1>
           <p className="text-muted-foreground text-sm">
-            Manage tournaments, gallery, and site information
+            Manage tournaments, gallery, site information, and players
           </p>
         </div>
 
         <Tabs defaultValue="tournaments" className="space-y-6">
-          <TabsList className="bg-secondary border border-border rounded-none h-auto p-1 gap-1">
+          <TabsList className="bg-secondary border border-border rounded-none h-auto p-1 gap-1 flex-wrap">
             <TabsTrigger
               value="tournaments"
-              className="font-display font-semibold text-sm rounded-none data-[state=active]:bg-primary data-[state=active]:text-primary-foreground px-5 py-2"
+              className="font-display font-semibold text-sm rounded-none data-[state=active]:bg-primary data-[state=active]:text-primary-foreground px-4 py-2"
               data-ocid="admin.tournaments.tab"
             >
               Tournaments
             </TabsTrigger>
             <TabsTrigger
               value="gallery"
-              className="font-display font-semibold text-sm rounded-none data-[state=active]:bg-primary data-[state=active]:text-primary-foreground px-5 py-2"
+              className="font-display font-semibold text-sm rounded-none data-[state=active]:bg-primary data-[state=active]:text-primary-foreground px-4 py-2"
               data-ocid="admin.gallery.tab"
             >
               Gallery
             </TabsTrigger>
             <TabsTrigger
               value="siteinfo"
-              className="font-display font-semibold text-sm rounded-none data-[state=active]:bg-primary data-[state=active]:text-primary-foreground px-5 py-2"
+              className="font-display font-semibold text-sm rounded-none data-[state=active]:bg-primary data-[state=active]:text-primary-foreground px-4 py-2"
               data-ocid="admin.siteinfo.tab"
             >
               Site Info
+            </TabsTrigger>
+            <TabsTrigger
+              value="registrations"
+              className="font-display font-semibold text-sm rounded-none data-[state=active]:bg-primary data-[state=active]:text-primary-foreground px-4 py-2"
+              data-ocid="admin.registrations.tab"
+            >
+              Registrations
+            </TabsTrigger>
+            <TabsTrigger
+              value="players"
+              className="font-display font-semibold text-sm rounded-none data-[state=active]:bg-primary data-[state=active]:text-primary-foreground px-4 py-2"
+              data-ocid="admin.players.tab"
+            >
+              Players & Rankings
+            </TabsTrigger>
+            <TabsTrigger
+              value="joins"
+              className="font-display font-semibold text-sm rounded-none data-[state=active]:bg-primary data-[state=active]:text-primary-foreground px-4 py-2"
+              data-ocid="admin.tournament_joins.tab"
+            >
+              Tournament Joins
             </TabsTrigger>
           </TabsList>
 
@@ -1122,6 +1259,15 @@ function AdminCMS({ onBack }: { onBack: () => void }) {
           <TabsContent value="siteinfo" className="mt-0">
             <SiteInfoTab />
           </TabsContent>
+          <TabsContent value="registrations" className="mt-0">
+            <RegistrationsTab />
+          </TabsContent>
+          <TabsContent value="players" className="mt-0">
+            <PlayersRankingsTab />
+          </TabsContent>
+          <TabsContent value="joins" className="mt-0">
+            <TournamentJoinsTab />
+          </TabsContent>
         </Tabs>
       </main>
     </div>
@@ -1131,9 +1277,17 @@ function AdminCMS({ onBack }: { onBack: () => void }) {
 // ─── Main Export ──────────────────────────────────────────────────────────────
 
 export default function AdminPage({ onBack }: AdminPageProps) {
-  const { isLoginSuccess } = useInternetIdentity();
+  const { player, isInitializing } = usePlayerSession();
 
-  if (!isLoginSuccess) {
+  if (isInitializing) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 size={32} className="animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!player || player.username !== "jaiswin") {
     return <LoginScreen onBack={onBack} />;
   }
 
